@@ -115,13 +115,11 @@ export async function POST(request: NextRequest) {
       where: { userId: user.id }
     })
 
-    // Add new favorite teams (using mock team IDs for now)
+    // Add new favorite teams
     if (selectedTeams && selectedTeams.length > 0) {
-      // For now, we'll create a simple mapping of team IDs
-      // In production, these would be actual team IDs from the database
       const teamData = selectedTeams.map((teamId: string, index: number) => ({
         userId: user.id,
-        teamId: `team_${teamId}`, // Mock team ID
+        teamId: teamId, // Use actual team IDs from database
         priority: index + 1
       }))
 

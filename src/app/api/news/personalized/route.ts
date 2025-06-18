@@ -43,10 +43,8 @@ export async function GET(request: NextRequest) {
       }, { status: 403 })
     }
 
-    // Get team IDs from user's favorites (extract actual team ID from mock format)
-    const favoriteTeamIds = user.favoriteTeams.map(ft => 
-      ft.teamId.replace('team_', '') // Remove 'team_' prefix from mock IDs
-    )
+    // Get team IDs from user's favorites
+    const favoriteTeamIds = user.favoriteTeams.map(ft => ft.teamId)
 
     // Filter news based on user's favorite teams
     let personalizedNews = MOCK_NEWS_DATA

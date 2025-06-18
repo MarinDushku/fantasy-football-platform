@@ -1,21 +1,34 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { getDevSession } from "@/lib/devAuth"
 import { prisma } from "@/lib/prisma"
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
+    const nextAuthSession = await getServerSession(authOptions)
+    const devSession = await getDevSession()
     
-    if (!session?.user?.id) {
+    const userEmail = nextAuthSession?.user?.email || devSession?.user?.email
+    
+    if (!userEmail) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // Find user first
+    const user = await prisma.user.findUnique({
+      where: { email: userEmail }
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     const leagues = await prisma.fantasyLeague.findMany({
       where: {
         memberships: {
           some: {
-            userId: session.user.id
+            userId: user.id
           }
         }
       },
@@ -71,10 +84,22 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const nextAuthSession = await getServerSession(authOptions)
+    const devSession = await getDevSession()
     
-    if (!session?.user?.id) {
+    const userEmail = nextAuthSession?.user?.email || devSession?.user?.email
+    
+    if (!userEmail) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // Find user first
+    const user = await prisma.user.findUnique({
+      where: { email: userEmail }
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     const body = await request.json()
@@ -103,7 +128,7 @@ export async function POST(request: NextRequest) {
       data: {
         name,
         description,
-        creatorId: session.user.id,
+        creatorId: user.id,
         competitionId,
         leagueType: leagueType || "PRIVATE",
         maxMembers: maxMembers || 12,
@@ -114,8 +139,8 @@ export async function POST(request: NextRequest) {
         hasPlayoffs: hasPlayoffs !== false,
         memberships: {
           create: {
-            userId: session.user.id,
-            teamName: `${session.user.email?.split("@")[0] || "User"}'s Team`,
+            userId: user.id,
+            teamName: `${userEmail.split("@")[0] || "User"}'s Team`,
             isAdmin: true,
             remainingBudget: budgetLimit || 100000000
           }
