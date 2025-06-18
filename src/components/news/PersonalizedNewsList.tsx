@@ -148,7 +148,7 @@ export const PersonalizedNewsList: React.FC<PersonalizedNewsListProps> = ({
           </div>
           
           {personalization.isPersonalized ? (
-            <CardDescription className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 text-sm text-muted-foreground">
               <span>Personalized for your {personalization.favoriteTeamsCount} favorite teams</span>
               <div className="flex items-center space-x-2">
                 {personalization.favoriteTeams.slice(0, 3).map((team, index) => (
@@ -162,9 +162,9 @@ export const PersonalizedNewsList: React.FC<PersonalizedNewsListProps> = ({
                   </Badge>
                 )}
               </div>
-            </CardDescription>
+            </div>
           ) : (
-            <CardDescription className="flex items-center justify-between">
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>General football news - set up your preferences for personalized content</span>
               <Link href="/onboarding">
                 <Button variant="ghost" size="sm" className="text-blue-600">
@@ -172,7 +172,7 @@ export const PersonalizedNewsList: React.FC<PersonalizedNewsListProps> = ({
                   Personalize
                 </Button>
               </Link>
-            </CardDescription>
+            </div>
           )}
         </CardHeader>
       </Card>
