@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { PersonalizedNewsList } from "@/components/news/PersonalizedNewsList"
 import { CreateLeagueModal } from "@/components/leagues/CreateLeagueModal"
 import { InviteToLeagueModal } from "@/components/leagues/InviteToLeagueModal"
+import { JoinLeagueModal } from "@/components/leagues/JoinLeagueModal"
 import { 
   Trophy, 
   Users, 
@@ -63,6 +64,7 @@ export default function Dashboard() {
   const [leagues, setLeagues] = useState<League[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateLeague, setShowCreateLeague] = useState(false)
+  const [showJoinLeague, setShowJoinLeague] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null)
 
@@ -149,13 +151,22 @@ export default function Dashboard() {
                 }
               </p>
             </div>
-            <Button 
-              onClick={() => setShowCreateLeague(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Create League
-            </Button>
+            <div className="flex space-x-3">
+              <Button 
+                onClick={() => setShowJoinLeague(true)}
+                variant="outline"
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Join League
+              </Button>
+              <Button 
+                onClick={() => setShowCreateLeague(true)}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create League
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -271,12 +282,22 @@ export default function Dashboard() {
                   {hasNoLeagues ? "Get started by creating or joining a league" : "Manage your fantasy kingdoms"}
                 </CardDescription>
               </div>
-              {leagues.length > 3 && (
-                <Button variant="outline" size="sm">
-                  View All
-                  <ArrowRight className="w-4 h-4 ml-2" />
+              <div className="flex space-x-2">
+                <Button 
+                  onClick={() => setShowJoinLeague(true)}
+                  variant="outline" 
+                  size="sm"
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  Join League
                 </Button>
-              )}
+                {leagues.length > 3 && (
+                  <Button variant="outline" size="sm">
+                    View All
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {hasNoLeagues ? (
@@ -298,7 +319,10 @@ export default function Dashboard() {
                       <Plus className="w-4 h-4 mr-2" />
                       Create League
                     </Button>
-                    <Button variant="outline">
+                    <Button 
+                      onClick={() => setShowJoinLeague(true)}
+                      variant="outline"
+                    >
                       <Users className="w-4 h-4 mr-2" />
                       Join League
                     </Button>
@@ -458,6 +482,12 @@ export default function Dashboard() {
         open={showCreateLeague} 
         onOpenChange={setShowCreateLeague}
         onLeagueCreated={fetchLeagues}
+      />
+      
+      <JoinLeagueModal 
+        open={showJoinLeague} 
+        onOpenChange={setShowJoinLeague}
+        onLeagueJoined={fetchLeagues}
       />
       
       {selectedLeagueId && (
