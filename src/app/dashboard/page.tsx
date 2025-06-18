@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PersonalizedNewsList } from "@/components/news/PersonalizedNewsList"
@@ -60,6 +61,7 @@ interface League {
 }
 
 export default function Dashboard() {
+  const router = useRouter()
   const [userData, setUserData] = useState<UserData | null>(null)
   const [leagues, setLeagues] = useState<League[]>([])
   const [loading, setLoading] = useState(true)
@@ -332,7 +334,11 @@ export default function Dashboard() {
                 leagues.slice(0, 3).map((league, index) => {
                   const userMembership = league.memberships[0] // Assuming first membership is user's
                   return (
-                    <div key={league.id} className="group p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer">
+                    <div 
+                      key={league.id} 
+                      className="group p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/leagues/${league.id}`)}
+                    >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
                           <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-gradient-to-br from-blue-400 to-purple-500">
