@@ -1,0 +1,1273 @@
+// Fantasy Football Platform Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Core User & Authentication
+model User {
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  username             String?   @unique
+  displayName          String?   @map("display_name")
+  avatarUrl            String?   @map("avatar_url")
+  bio                  String?
+  countryCode          String?   @map("country_code")
+  timezone             String?
+  preferredLanguage    String    @default("en") @map("preferred_language")
+  emailVerified        Boolean   @default(false) @map("email_verified")
+  isPremium            Boolean   @default(false) @map("is_premium")
+  premiumExpiresAt     DateTime? @map("premium_expires_at")
+  totalExperiencePoints Int      @default(0) @map("total_experience_points")
+  reputationScore      Int       @default(100) @map("reputation_score")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  lastActiveAt         DateTime? @map("last_active_at")
+  accountStatus        AccountStatus @default(ACTIVE) @map("account_status")
+
+  // Relations
+  createdLeagues     FantasyLeague[]  @relation("LeagueCreator")
+  leagueMemberships  LeagueMembership[]
+  globalRankings     GlobalRanking[]
+  hallOfFameEntries  HallOfFame[]
+  sentMessages       LeagueMessage[]
+  notifications      Notification[]
+  activityLogs       ActivityLog[]
+  tradeInitiated     Trade[]         @relation("TradeInitiator")
+  tradeReceived      Trade[]         @relation("TradeRecipient")
+  tradeVotes         TradeVote[]
+  accounts           Account[]
+  sessions           Session[]
+  relatedNotifications Notification[] @relation("RelatedUser")
+  favoriteTeams      UserFavoriteTeam[]
+  userPreferences    UserPreferences?
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// Real-World Football Data
+model Competition {
+  id         String   @id @default(cuid())
+  apiId      Int?     @unique @map("api_id")
+  name       String
+  shortName  String?  @map("short_name") @db.VarChar(10)
+  country    String?
+  logoUrl    String?  @map("logo_url")
+  season     String?
+  startDate  DateTime? @map("start_date")
+  endDate    DateTime? @map("end_date")
+  isActive   Boolean  @default(true) @map("is_active")
+  priority   Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  teams          Team[]
+  gameweeks      Gameweek[]
+  fantasyLeagues FantasyLeague[]
+  hallOfFame     HallOfFame[]
+
+  @@map("competitions")
+}
+
+model Team {
+  id               String      @id @default(cuid())
+  apiId            Int?        @unique @map("api_id")
+  name             String
+  shortName        String?     @map("short_name")
+  logoUrl          String?     @map("logo_url")
+  competitionId    String      @map("competition_id")
+  country          String?
+  foundedYear      Int?        @map("founded_year")
+  stadiumName      String?     @map("stadium_name")
+  stadiumCapacity  Int?        @map("stadium_capacity")
+  primaryColor     String?     @map("primary_color")
+  secondaryColor   String?     @map("secondary_color")
+  isActive         Boolean     @default(true) @map("is_active")
+  createdAt        DateTime    @default(now()) @map("created_at")
+
+  competition Competition @relation(fields: [competitionId], references: [id])
+  players     Player[]
+  homeMatches Match[]     @relation("HomeTeam")
+  awayMatches Match[]     @relation("AwayTeam")
+  favoriteByUsers UserFavoriteTeam[]
+
+  @@map("teams")
+}
+
+model Player {
+  id                String            @id @default(cuid())
+  apiId             Int?              @unique @map("api_id")
+  name              String
+  position          PlayerPosition
+  teamId            String            @map("team_id")
+  jerseyNumber      Int?              @map("jersey_number")
+  nationality       String?
+  birthDate         DateTime?         @map("birth_date")
+  heightCm          Int?              @map("height_cm")
+  weightKg          Int?              @map("weight_kg")
+  photoUrl          String?           @map("photo_url")
+  marketValueEuros  BigInt?           @map("market_value_euros")
+  contractExpires   DateTime?         @map("contract_expires")
+  isActive          Boolean           @default(true) @map("is_active")
+  injuryStatus      InjuryStatus      @default(FIT) @map("injury_status")
+  injuryReturnDate  DateTime?         @map("injury_return_date")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  team Team @relation(fields: [teamId], references: [id])
+
+  // Relations
+  performances        PlayerPerformance[]
+  userSquads          UserSquad[]
+  transfers           Transfer[]      @relation("PlayerIn")
+  transfersOut        Transfer[]      @relation("PlayerOut")
+  auctions            Auction[]
+  draftPicks          DraftPick[]
+  injuryPredictions   InjuryPrediction[]
+  injuryHistory       InjuryHistory[]
+  pricePredictions    PricePrediction[]
+  priceChanges        PriceChange[]
+  priceHistory        PlayerPriceHistory[]
+  hallOfFameEntries   HallOfFame[]
+  draftAutopickLists  DraftAutopickList[]
+
+  @@map("players")
+}
+
+model Gameweek {
+  id             String    @id @default(cuid())
+  competitionId  String    @map("competition_id")
+  gameweekNumber Int       @map("gameweek_number")
+  name           String?
+  startDate      DateTime? @map("start_date")
+  endDate        DateTime? @map("end_date")
+  deadlineTime   DateTime? @map("deadline_time")
+  isCurrent      Boolean   @default(false) @map("is_current")
+  isFinished     Boolean   @default(false) @map("is_finished")
+
+  competition Competition @relation(fields: [competitionId], references: [id])
+
+  // Relations
+  matches               Match[]
+  gameweekScores        GameweekScore[]
+  h2hFixtures           H2HFixture[]
+  globalRankings        GlobalRanking[]
+  injuryPredictions     InjuryPrediction[]
+  pricePredictions      PricePrediction[]
+  priceChanges          PriceChange[]
+  priceHistory          PlayerPriceHistory[]
+  playoffGameweekScores PlayoffGameweekScore[]
+
+  @@unique([competitionId, gameweekNumber])
+  @@map("gameweeks")
+}
+
+// User Preferences and Favorite Teams
+model UserPreferences {
+  id                    String   @id @default(cuid())
+  userId                String   @unique @map("user_id")
+  hasCompletedOnboarding Boolean @default(false) @map("has_completed_onboarding")
+  preferredLeagues      String[] @map("preferred_leagues") // Array of league IDs
+  newsFrequency         String   @default("daily") @map("news_frequency") // daily, weekly, instant
+  notificationsEnabled  Boolean  @default(true) @map("notifications_enabled")
+  emailNotifications    Boolean  @default(true) @map("email_notifications")
+  pushNotifications     Boolean  @default(true) @map("push_notifications")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model UserFavoriteTeam {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  teamId    String   @map("team_id")
+  priority  Int      @default(1) // 1 = highest priority for news
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+  @@map("user_favorite_teams")
+}
+
+model Match {
+  id              String       @id @default(cuid())
+  apiId           Int?         @unique @map("api_id")
+  gameweekId      String       @map("gameweek_id")
+  homeTeamId      String       @map("home_team_id")
+  awayTeamId      String       @map("away_team_id")
+  kickoffTime     DateTime?    @map("kickoff_time")
+  homeScore       Int?         @map("home_score")
+  awayScore       Int?         @map("away_score")
+  status          MatchStatus  @default(SCHEDULED)
+  minutePlayed    Int          @default(0) @map("minute_played")
+  homePossession  Decimal?     @map("home_possession") @db.Decimal(5,2)
+  awayPossession  Decimal?     @map("away_possession") @db.Decimal(5,2)
+  weatherCondition String?     @map("weather_condition")
+  attendance      Int?
+  referee         String?
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  gameweek  Gameweek @relation(fields: [gameweekId], references: [id])
+  homeTeam  Team     @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam  Team     @relation("AwayTeam", fields: [awayTeamId], references: [id])
+
+  // Relations
+  playerPerformances PlayerPerformance[]
+
+  @@map("matches")
+}
+
+// Fantasy League System
+model ScoringTemplate {
+  id           String  @id @default(cuid())
+  name         String
+  description  String?
+  isOfficial   Boolean @default(false) @map("is_official")
+  creatorId    String? @map("creator_id")
+  usageCount   Int     @default(0) @map("usage_count")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  fantasyLeagues  FantasyLeague[]
+
+  @@map("scoring_templates")
+}
+
+model FantasyLeague {
+  id                    String              @id @default(cuid())
+  name                  String
+  description           String?
+  creatorId             String              @map("creator_id")
+  competitionId         String              @map("competition_id")
+  leagueType            LeagueType          @default(PRIVATE) @map("league_type")
+  maxMembers            Int                 @default(12) @map("max_members")
+  currentMembers        Int                 @default(1) @map("current_members")
+  entryFee              Decimal             @default(0) @map("entry_fee") @db.Decimal(10,2)
+  prizePool             Decimal             @default(0) @map("prize_pool") @db.Decimal(10,2)
+  selectionMethod       SelectionMethod     @default(AUCTION) @map("selection_method")
+  draftSettings         Json?               @map("draft_settings")
+  budgetLimit           BigInt              @default(100000000) @map("budget_limit")
+  squadSize             Int                 @default(15) @map("squad_size")
+  startingEleven        Int                 @default(11) @map("starting_eleven")
+  maxPlayersPerTeam     Int                 @default(3) @map("max_players_per_team")
+  transferLimitPerWeek  Int                 @default(2) @map("transfer_limit_per_week")
+  wildcardCount         Int                 @default(2) @map("wildcard_count")
+  scoringTemplateId     String?             @map("scoring_template_id")
+  hasPlayoffs           Boolean             @default(true) @map("has_playoffs")
+  playoffTeams          Int                 @default(4) @map("playoff_teams")
+  playoffStartGameweek  Int                 @default(35) @map("playoff_start_gameweek")
+  playoffFormat         PlayoffFormat       @default(KNOCKOUT) @map("playoff_format")
+  status                LeagueStatus        @default(DRAFT)
+  season                String?
+  currentGameweek       Int                 @default(1) @map("current_gameweek")
+  auctionStartTime      DateTime?           @map("auction_start_time")
+  seasonStartDate       DateTime?           @map("season_start_date")
+  seasonEndDate         DateTime?           @map("season_end_date")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+
+  creator         User               @relation("LeagueCreator", fields: [creatorId], references: [id])
+  competition     Competition        @relation(fields: [competitionId], references: [id])
+  scoringTemplate ScoringTemplate?   @relation(fields: [scoringTemplateId], references: [id])
+
+  // Relations
+  memberships       LeagueMembership[]
+  scoringRules      LeagueScoringRule?
+  h2hFixtures       H2HFixture[]
+  auctions          Auction[]
+  trades            Trade[]
+  messages          LeagueMessage[]
+  activityLogs      ActivityLog[]
+  notifications     Notification[]
+  drafts            Draft[]
+  playoffBrackets   PlayoffBracket[]
+  championships     PlayoffChampionship[]
+
+  @@map("fantasy_leagues")
+}
+
+model LeagueScoringRule {
+  id                      String   @id @default(cuid())
+  leagueId                String   @unique @map("league_id")
+  goalPoints              Int      @default(6) @map("goal_points")
+  assistPoints            Int      @default(3) @map("assist_points")
+  cleanSheetGkPoints      Int      @default(6) @map("clean_sheet_gk_points")
+  cleanSheetDefPoints     Int      @default(4) @map("clean_sheet_def_points")
+  cleanSheetMidPoints     Int      @default(1) @map("clean_sheet_mid_points")
+  penaltySavePoints       Int      @default(5) @map("penalty_save_points")
+  penaltyMissPoints       Int      @default(-2) @map("penalty_miss_points")
+  yellowCardPoints        Int      @default(-1) @map("yellow_card_points")
+  redCardPoints           Int      @default(-3) @map("red_card_points")
+  ownGoalPoints           Int      @default(-2) @map("own_goal_points")
+  bonusSystem             BonusSystem @default(STANDARD) @map("bonus_system")
+  customBonusRules        Json?    @map("custom_bonus_rules")
+  goalkeeperMultiplier    Decimal  @default(1.00) @map("goalkeeper_multiplier") @db.Decimal(3,2)
+  defenderMultiplier      Decimal  @default(1.00) @map("defender_multiplier") @db.Decimal(3,2)
+  midfielderMultiplier    Decimal  @default(1.00) @map("midfielder_multiplier") @db.Decimal(3,2)
+  forwardMultiplier       Decimal  @default(1.00) @map("forward_multiplier") @db.Decimal(3,2)
+  minutesForPoints        Int      @default(60) @map("minutes_for_points")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  league          FantasyLeague    @relation(fields: [leagueId], references: [id])
+
+  @@map("league_scoring_rules")
+}
+
+model LeagueMembership {
+  id                    String    @id @default(cuid())
+  leagueId              String    @map("league_id")
+  userId                String    @map("user_id")
+  teamName              String    @map("team_name")
+  teamLogoUrl           String?   @map("team_logo_url")
+  isAdmin               Boolean   @default(false) @map("is_admin")
+  remainingBudget       BigInt?   @map("remaining_budget")
+  totalPoints           Int       @default(0) @map("total_points")
+  gameweekPoints        Int       @default(0) @map("gameweek_points")
+  leaguePosition        Int?      @map("league_position")
+  wins                  Int       @default(0)
+  draws                 Int       @default(0)
+  losses                Int       @default(0)
+  headToHeadPoints      Int       @default(0) @map("head_to_head_points")
+  wildcardsUsed         Int       @default(0) @map("wildcards_used")
+  benchBoostUsed        Boolean   @default(false) @map("bench_boost_used")
+  tripleCaptainUsed     Boolean   @default(false) @map("triple_captain_used")
+  freeHitUsed           Boolean   @default(false) @map("free_hit_used")
+  joinedAt              DateTime  @default(now()) @map("joined_at")
+  isActive              Boolean   @default(true) @map("is_active")
+
+  league FantasyLeague @relation(fields: [leagueId], references: [id])
+  user   User          @relation(fields: [userId], references: [id])
+
+  // Relations
+  userSquads        UserSquad[]
+  transfers         Transfer[]
+  gameweekScores    GameweekScore[]
+  h2hHomeFixtures   H2HFixture[]       @relation("HomeTeam")
+  h2hAwayFixtures   H2HFixture[]       @relation("AwayTeam")
+  auctionBids       AuctionBid[]
+  tradeInitiated    Trade[]            @relation("TradeInitiatorMembership")
+  tradeReceived     Trade[]            @relation("TradeRecipientMembership")
+  userPowerUps      UserPowerUp[]
+  activityLogs      ActivityLog[]
+  draftOrder        DraftOrder[]
+  draftPicks        DraftPick[]
+  draftAutopick     DraftAutopickList[]
+  playoffParticipant PlayoffParticipant[]
+  championships     PlayoffChampionship[] @relation("Champion")
+  runnerUps         PlayoffChampionship[] @relation("RunnerUp")
+  thirdPlace        PlayoffChampionship[] @relation("ThirdPlace")
+  fourthPlace       PlayoffChampionship[] @relation("FourthPlace")
+  hallOfFame        HallOfFame[]
+  currentDrafter    Draft[]
+  highestBidder     Auction[]
+
+  @@unique([leagueId, userId])
+  @@map("league_memberships")
+}
+
+// Draft System
+model Draft {
+  id                  String       @id @default(cuid())
+  leagueId            String       @map("league_id")
+  draftType           DraftType    @default(SNAKE) @map("draft_type")
+  rounds              Int          @default(15)
+  timePerPick         Int          @default(90) @map("time_per_pick")
+  status              DraftStatus  @default(SCHEDULED)
+  currentRound        Int          @default(1) @map("current_round")
+  currentPickPosition Int          @default(1) @map("current_pick_position")
+  currentDrafterId    String?      @map("current_drafter_id")
+  scheduledStart      DateTime?    @map("scheduled_start")
+  actualStart         DateTime?    @map("actual_start")
+  pickDeadline        DateTime?    @map("pick_deadline")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  league          FantasyLeague   @relation(fields: [leagueId], references: [id])
+  currentDrafter  LeagueMembership? @relation(fields: [currentDrafterId], references: [id])
+
+  // Relations
+  draftOrder      DraftOrder[]
+  draftPicks      DraftPick[]
+  draftAnalytics  DraftAnalytics?
+
+  @@map("drafts")
+}
+
+model DraftOrder {
+  id                   String            @id @default(cuid())
+  draftId              String            @map("draft_id")
+  leagueMembershipId   String            @map("league_membership_id")
+  draftPosition        Int               @map("draft_position")
+
+  draft              Draft             @relation(fields: [draftId], references: [id])
+  leagueMembership   LeagueMembership  @relation(fields: [leagueMembershipId], references: [id])
+
+  @@unique([draftId, draftPosition])
+  @@unique([draftId, leagueMembershipId])
+  @@map("draft_order")
+}
+
+model DraftPick {
+  id              String            @id @default(cuid())
+  draftId         String            @map("draft_id")
+  roundNumber     Int               @map("round_number")
+  pickNumber      Int               @map("pick_number")
+  pickInRound     Int               @map("pick_in_round")
+  drafterId       String            @map("drafter_id")
+  playerId        String            @map("player_id")
+  pickTime        DateTime?         @map("pick_time")
+  timeTaken       Int?              @map("time_taken")
+  wasAutoPick     Boolean           @default(false) @map("was_auto_pick")
+  userRanking     Int?              @map("user_ranking")
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  draft           Draft             @relation(fields: [draftId], references: [id])
+  drafter         LeagueMembership  @relation(fields: [drafterId], references: [id])
+  player          Player            @relation(fields: [playerId], references: [id])
+
+  // Analytics relations
+  bestValueAnalytics  DraftAnalytics[] @relation("BestValuePick")
+  worstAnalytics      DraftAnalytics[] @relation("WorstPick")
+
+  @@unique([draftId, playerId])
+  @@unique([draftId, pickNumber])
+  @@map("draft_picks")
+}
+
+model DraftAutopickList {
+  id                   String            @id @default(cuid())
+  leagueMembershipId   String            @map("league_membership_id")
+  playerId             String            @map("player_id")
+  priorityOrder        Int               @map("priority_order")
+  createdAt            DateTime          @default(now()) @map("created_at")
+
+  leagueMembership  LeagueMembership  @relation(fields: [leagueMembershipId], references: [id])
+  player            Player            @relation(fields: [playerId], references: [id])
+
+  @@unique([leagueMembershipId, playerId])
+  @@unique([leagueMembershipId, priorityOrder])
+  @@map("draft_autopick_lists")
+}
+
+model DraftAnalytics {
+  id                  String    @id @default(cuid())
+  draftId             String    @unique @map("draft_id")
+  totalDraftTime      String?   @map("total_draft_time")
+  averagePickTime     String?   @map("average_pick_time")
+  fastestPickTime     String?   @map("fastest_pick_time")
+  slowestPickTime     String?   @map("slowest_pick_time")
+  bestValuePickId     String?   @map("best_value_pick_id")
+  worstPickId         String?   @map("worst_pick_id")
+  autoPicksCount      Int       @default(0) @map("auto_picks_count")
+  manualPicksCount    Int       @default(0) @map("manual_picks_count")
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  draft           Draft      @relation(fields: [draftId], references: [id])
+  bestValuePick   DraftPick? @relation("BestValuePick", fields: [bestValuePickId], references: [id])
+  worstPick       DraftPick? @relation("WorstPick", fields: [worstPickId], references: [id])
+
+  @@map("draft_analytics")
+}
+
+// Performance & Scoring System
+model PlayerPerformance {
+  id               String    @id @default(cuid())
+  playerId         String    @map("player_id")
+  matchId          String    @map("match_id")
+  minutesPlayed    Int       @default(0) @map("minutes_played")
+  goals            Int       @default(0)
+  assists          Int       @default(0)
+  cleanSheet       Boolean   @default(false) @map("clean_sheet")
+  tackles          Int       @default(0)
+  interceptions    Int       @default(0)
+  clearances       Int       @default(0)
+  blocks           Int       @default(0)
+  shots            Int       @default(0)
+  shotsOnTarget    Int       @default(0) @map("shots_on_target")
+  keyPasses        Int       @default(0) @map("key_passes")
+  crosses          Int       @default(0)
+  yellowCards      Int       @default(0) @map("yellow_cards")
+  redCards         Int       @default(0) @map("red_cards")
+  foulsCommitted   Int       @default(0) @map("fouls_committed")
+  foulsWon         Int       @default(0) @map("fouls_won")
+  saves            Int       @default(0)
+  penaltiesSaved   Int       @default(0) @map("penalties_saved")
+  penaltiesMissed  Int       @default(0) @map("penalties_missed")
+  fantasyPoints    Decimal   @default(0) @map("fantasy_points") @db.Decimal(5,2)
+  bonusPoints      Int       @default(0) @map("bonus_points")
+  rating           Decimal?  @db.Decimal(3,1)
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  player  Player  @relation(fields: [playerId], references: [id])
+  match   Match   @relation(fields: [matchId], references: [id])
+
+  @@unique([playerId, matchId])
+  @@map("player_performances")
+}
+
+model GameweekScore {
+  id                    String            @id @default(cuid())
+  leagueMembershipId    String            @map("league_membership_id")
+  gameweekId            String            @map("gameweek_id")
+  totalPoints           Int               @default(0) @map("total_points")
+  startingElevenPoints  Int               @default(0) @map("starting_eleven_points")
+  benchPoints           Int               @default(0) @map("bench_points")
+  captainPoints         Int               @default(0) @map("captain_points")
+  viceCaptainPoints     Int               @default(0) @map("vice_captain_points")
+  benchBoostPoints      Int               @default(0) @map("bench_boost_points")
+  tripleCaptainPoints   Int               @default(0) @map("triple_captain_points")
+  transfersMade         Int               @default(0) @map("transfers_made")
+  transferCost          Int               @default(0) @map("transfer_cost")
+  gameweekRank          Int?              @map("gameweek_rank")
+  overallRank           Int?              @map("overall_rank")
+  leagueRank            Int?              @map("league_rank")
+  createdAt             DateTime          @default(now()) @map("created_at")
+
+  leagueMembership  LeagueMembership  @relation(fields: [leagueMembershipId], references: [id])
+  gameweek          Gameweek          @relation(fields: [gameweekId], references: [id])
+
+  @@unique([leagueMembershipId, gameweekId])
+  @@map("gameweek_scores")
+}
+
+// Head-to-Head System
+model H2HFixture {
+  id             String            @id @default(cuid())
+  leagueId       String            @map("league_id")
+  gameweekId     String            @map("gameweek_id")
+  homeTeamId     String            @map("home_team_id")
+  awayTeamId     String            @map("away_team_id")
+  homePoints     Int?              @map("home_points")
+  awayPoints     Int?              @map("away_points")
+  result         FixtureResult?
+  homeH2hPoints  Int               @default(0) @map("home_h2h_points")
+  awayH2hPoints  Int               @default(0) @map("away_h2h_points")
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  league     FantasyLeague     @relation(fields: [leagueId], references: [id])
+  gameweek   Gameweek          @relation(fields: [gameweekId], references: [id])
+  homeTeam   LeagueMembership  @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam   LeagueMembership  @relation("AwayTeam", fields: [awayTeamId], references: [id])
+
+  @@unique([leagueId, gameweekId, homeTeamId, awayTeamId])
+  @@map("h2h_fixtures")
+}
+
+// Global Rankings & Analytics
+model GlobalRanking {
+  id              String      @id @default(cuid())
+  userId          String      @map("user_id")
+  gameweekId      String      @map("gameweek_id")
+  gameweekPoints  Int         @map("gameweek_points")
+  totalPoints     Int         @map("total_points")
+  gameweekRank    Int         @map("gameweek_rank")
+  overallRank     Int         @map("overall_rank")
+  totalTransfers  Int         @map("total_transfers")
+  benchPoints     Int         @map("bench_points")
+  captainPoints   Int         @map("captain_points")
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  user        User          @relation(fields: [userId], references: [id])
+  gameweek    Gameweek      @relation(fields: [gameweekId], references: [id])
+
+  @@unique([userId, gameweekId])
+  @@map("global_rankings")
+}
+
+model HallOfFame {
+  id                   String             @id @default(cuid())
+  season               String
+  competitionId        String             @map("competition_id")
+  recordType           HallOfFameRecord   @map("record_type")
+  recordValue          Int                @map("record_value")
+  userId               String             @map("user_id")
+  leagueMembershipId   String?            @map("league_membership_id")
+  gameweekNumber       Int?               @map("gameweek_number")
+  playerId             String?            @map("player_id")
+  description          String?
+  createdAt            DateTime           @default(now()) @map("created_at")
+
+  competition       Competition        @relation(fields: [competitionId], references: [id])
+  user              User               @relation(fields: [userId], references: [id])
+  leagueMembership  LeagueMembership?  @relation(fields: [leagueMembershipId], references: [id])
+  player            Player?            @relation(fields: [playerId], references: [id])
+
+  @@map("hall_of_fame")
+}
+
+// Additional Enums
+enum FixtureResult {
+  HOME_WIN
+  AWAY_WIN
+  DRAW
+}
+
+enum HallOfFameRecord {
+  HIGHEST_GAMEWEEK
+  HIGHEST_SEASON
+  MOST_TRANSFERS
+  BEST_CAPTAIN_PICK
+}
+
+// Auction & Trading System
+model Auction {
+  id               String         @id @default(cuid())
+  leagueId         String         @map("league_id")
+  playerId         String         @map("player_id")
+  startingPrice    BigInt         @map("starting_price")
+  currentPrice     BigInt         @map("current_price")
+  highestBidderId  String?        @map("highest_bidder_id")
+  startTime        DateTime?      @map("start_time")
+  endTime          DateTime?      @map("end_time")
+  extensionTime    Int            @default(30) @map("extension_time")
+  status           AuctionStatus  @default(SCHEDULED)
+  createdAt        DateTime       @default(now()) @map("created_at")
+
+  league          FantasyLeague     @relation(fields: [leagueId], references: [id])
+  player          Player            @relation(fields: [playerId], references: [id])
+  highestBidder   LeagueMembership? @relation(fields: [highestBidderId], references: [id])
+
+  // Relations
+  bids            AuctionBid[]
+
+  @@map("auctions")
+}
+
+model AuctionBid {
+  id           String            @id @default(cuid())
+  auctionId    String            @map("auction_id")
+  bidderId     String            @map("bidder_id")
+  bidAmount    BigInt            @map("bid_amount")
+  bidTime      DateTime          @default(now()) @map("bid_time")
+  isAutoBid    Boolean           @default(false) @map("is_auto_bid")
+
+  auction  Auction           @relation(fields: [auctionId], references: [id])
+  bidder   LeagueMembership  @relation(fields: [bidderId], references: [id])
+
+  @@map("auction_bids")
+}
+
+// Squad Management & Transfers
+model UserSquad {
+  id                   String            @id @default(cuid())
+  leagueMembershipId   String            @map("league_membership_id")
+  playerId             String            @map("player_id")
+  purchasePrice        BigInt            @map("purchase_price")
+  isStarting           Boolean           @default(false) @map("is_starting")
+  isCaptain            Boolean           @default(false) @map("is_captain")
+  isViceCaptain        Boolean           @default(false) @map("is_vice_captain")
+  positionInFormation  Int?              @map("position_in_formation")
+  acquiredAt           DateTime          @default(now()) @map("acquired_at")
+
+  leagueMembership  LeagueMembership  @relation(fields: [leagueMembershipId], references: [id])
+  player            Player            @relation(fields: [playerId], references: [id])
+
+  @@unique([leagueMembershipId, playerId])
+  @@map("user_squads")
+}
+
+model Transfer {
+  id                   String            @id @default(cuid())
+  leagueMembershipId   String            @map("league_membership_id")
+  gameweek             Int
+  playerInId           String            @map("player_in_id")
+  playerOutId          String            @map("player_out_id")
+  transferCost         BigInt            @default(0) @map("transfer_cost")
+  transferType         TransferType      @default(REGULAR) @map("transfer_type")
+  createdAt            DateTime          @default(now()) @map("created_at")
+
+  leagueMembership  LeagueMembership  @relation(fields: [leagueMembershipId], references: [id])
+  playerIn          Player            @relation("PlayerIn", fields: [playerInId], references: [id])
+  playerOut         Player            @relation("PlayerOut", fields: [playerOutId], references: [id])
+
+  @@map("transfers")
+}
+
+// Enums
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum PlayerPosition {
+  GK
+  DEF
+  MID
+  FWD
+}
+
+enum InjuryStatus {
+  FIT
+  MINOR
+  MAJOR
+  OUT
+}
+
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  FINISHED
+  POSTPONED
+  CANCELLED
+}
+
+enum LeagueType {
+  PRIVATE
+  PUBLIC
+  PRO
+}
+
+enum SelectionMethod {
+  AUCTION
+  DRAFT
+}
+
+enum PlayoffFormat {
+  KNOCKOUT
+  MINI_LEAGUE
+}
+
+enum LeagueStatus {
+  DRAFT
+  AUCTION
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum BonusSystem {
+  STANDARD
+  CUSTOM
+  DISABLED
+}
+
+enum DraftType {
+  SNAKE
+  LINEAR
+}
+
+enum DraftStatus {
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum AuctionStatus {
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum TransferType {
+  REGULAR
+  WILDCARD
+  FREE_HIT
+}
+
+// Social & Communication
+model LeagueMessage {
+  id            String         @id @default(cuid())
+  leagueId      String         @map("league_id")
+  senderId      String         @map("sender_id")
+  messageType   MessageType    @default(TEXT) @map("message_type")
+  content       String
+  metadata      Json?
+  reactions     Json           @default("{}")
+  replyToId     String?        @map("reply_to_id")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  editedAt      DateTime?      @map("edited_at")
+  deletedAt     DateTime?      @map("deleted_at")
+
+  league    FantasyLeague    @relation(fields: [leagueId], references: [id])
+  sender    User             @relation(fields: [senderId], references: [id])
+  replyTo   LeagueMessage?   @relation("MessageReply", fields: [replyToId], references: [id])
+  replies   LeagueMessage[]  @relation("MessageReply")
+
+  @@map("league_messages")
+}
+
+model Notification {
+  id             String             @id @default(cuid())
+  userId         String             @map("user_id")
+  type           NotificationType
+  title          String
+  content        String?
+  leagueId       String?            @map("league_id")
+  relatedUserId  String?            @map("related_user_id")
+  isRead         Boolean            @default(false) @map("is_read")
+  isPushed       Boolean            @default(false) @map("is_pushed")
+  actionUrl      String?            @map("action_url")
+  metadata       Json?
+  createdAt      DateTime           @default(now()) @map("created_at")
+  readAt         DateTime?          @map("read_at")
+
+  user          User               @relation(fields: [userId], references: [id])
+  league        FantasyLeague?     @relation(fields: [leagueId], references: [id])
+  relatedUsers  User[]             @relation("RelatedUser")
+
+  @@map("notifications")
+}
+
+model ActivityLog {
+  id                   String            @id @default(cuid())
+  userId               String            @map("user_id")
+  leagueId             String?           @map("league_id")
+  leagueMembershipId   String?           @map("league_membership_id")
+  actionType           ActivityType      @map("action_type")
+  description          String
+  metadata             Json?
+  createdAt            DateTime          @default(now()) @map("created_at")
+
+  user               User               @relation(fields: [userId], references: [id])
+  league             FantasyLeague?     @relation(fields: [leagueId], references: [id])
+  leagueMembership   LeagueMembership?  @relation(fields: [leagueMembershipId], references: [id])
+
+  @@map("activity_logs")
+}
+
+// Trading System
+model Trade {
+  id                   String            @id @default(cuid())
+  leagueId             String            @map("league_id")
+  initiatorId          String            @map("initiator_id")
+  recipientId          String            @map("recipient_id")
+  initiatorMembershipId String           @map("initiator_membership_id")
+  recipientMembershipId String           @map("recipient_membership_id")
+  offerDetails         Json              @map("offer_details")
+  status               TradeStatus       @default(PENDING)
+  requiresVoting       Boolean           @default(false) @map("requires_voting")
+  votesFor             Int               @default(0) @map("votes_for")
+  votesAgainst         Int               @default(0) @map("votes_against")
+  votesRequired        Int?              @map("votes_required")
+  expiresAt            DateTime?         @map("expires_at")
+  completedAt          DateTime?         @map("completed_at")
+  createdAt            DateTime          @default(now()) @map("created_at")
+
+  league               FantasyLeague     @relation(fields: [leagueId], references: [id])
+  initiator            User              @relation("TradeInitiator", fields: [initiatorId], references: [id])
+  recipient            User              @relation("TradeRecipient", fields: [recipientId], references: [id])
+  initiatorMembership  LeagueMembership  @relation("TradeInitiatorMembership", fields: [initiatorMembershipId], references: [id])
+  recipientMembership  LeagueMembership  @relation("TradeRecipientMembership", fields: [recipientMembershipId], references: [id])
+
+  // Relations
+  votes                TradeVote[]
+
+  @@map("trades")
+}
+
+model TradeVote {
+  id        String    @id @default(cuid())
+  tradeId   String    @map("trade_id")
+  voterId   String    @map("voter_id")
+  vote      VoteType
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  trade  Trade  @relation(fields: [tradeId], references: [id])
+  voter  User   @relation(fields: [voterId], references: [id])
+
+  @@unique([tradeId, voterId])
+  @@map("trade_votes")
+}
+
+// Power-ups System
+model PowerUp {
+  id                   String       @id @default(cuid())
+  name                 String
+  description          String?
+  effectType           EffectType   @map("effect_type")
+  maxUsesPerSeason     Int          @default(1) @map("max_uses_per_season")
+  costInPoints         Int          @default(0) @map("cost_in_points")
+  durationGameweeks    Int          @default(1) @map("duration_gameweeks")
+  isActive             Boolean      @default(true) @map("is_active")
+
+  // Relations
+  userPowerUps         UserPowerUp[]
+
+  @@map("power_ups")
+}
+
+model UserPowerUp {
+  id                   String            @id @default(cuid())
+  leagueMembershipId   String            @map("league_membership_id")
+  powerUpId            String            @map("power_up_id")
+  gameweekUsed         Int               @map("gameweek_used")
+  gameweekExpires      Int               @map("gameweek_expires")
+  status               PowerUpStatus     @default(USED)
+  usedAt               DateTime          @default(now()) @map("used_at")
+  effectData           Json?             @map("effect_data")
+
+  leagueMembership  LeagueMembership  @relation(fields: [leagueMembershipId], references: [id])
+  powerUp           PowerUp           @relation(fields: [powerUpId], references: [id])
+
+  @@map("user_power_ups")
+}
+
+// Playoff System (Basic structure)
+model PlayoffBracket {
+  id            String         @id @default(cuid())
+  leagueId      String         @map("league_id")
+  season        String
+  bracketType   PlayoffFormat  @default(KNOCKOUT) @map("bracket_type")
+  totalTeams    Int            @default(4) @map("total_teams")
+  status        PlayoffStatus  @default(UPCOMING)
+  startGameweek Int            @map("start_gameweek")
+  endGameweek   Int            @map("end_gameweek")
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  league        FantasyLeague         @relation(fields: [leagueId], references: [id])
+  
+  // Relations
+  participants  PlayoffParticipant[]
+  matches       PlayoffMatch[]
+  championship  PlayoffChampionship?
+
+  @@map("playoff_brackets")
+}
+
+model PlayoffParticipant {
+  id                     String            @id @default(cuid())
+  bracketId              String            @map("bracket_id")
+  leagueMembershipId     String            @map("league_membership_id")
+  regularSeasonPosition  Int               @map("regular_season_position")
+  regularSeasonPoints    Int               @map("regular_season_points")
+  seedNumber             Int               @map("seed_number")
+  isEliminated           Boolean           @default(false) @map("is_eliminated")
+  currentRound           Int               @default(1) @map("current_round")
+  qualifiedAt            DateTime          @default(now()) @map("qualified_at")
+
+  bracket           PlayoffBracket    @relation(fields: [bracketId], references: [id])
+  leagueMembership  LeagueMembership  @relation(fields: [leagueMembershipId], references: [id])
+
+  // Relations
+  homeMatches       PlayoffMatch[]           @relation("PlayoffHomeTeam")
+  awayMatches       PlayoffMatch[]           @relation("PlayoffAwayTeam")
+  winnerMatches     PlayoffMatch[]           @relation("PlayoffWinner")
+  gameweekScores    PlayoffGameweekScore[]
+
+  @@map("playoff_participants")
+}
+
+model PlayoffMatch {
+  id              String             @id @default(cuid())
+  bracketId       String             @map("bracket_id")
+  roundNumber     Int                @map("round_number")
+  matchNumber     Int                @map("match_number")
+  team1Id         String?            @map("team1_id")
+  team2Id         String?            @map("team2_id")
+  startGameweek   Int                @map("start_gameweek")
+  endGameweek     Int                @map("end_gameweek")
+  team1Points     Int?               @map("team1_points")
+  team2Points     Int?               @map("team2_points")
+  winnerId        String?            @map("winner_id")
+  status          PlayoffMatchStatus @default(UPCOMING)
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  bracket       PlayoffBracket       @relation(fields: [bracketId], references: [id])
+  team1         PlayoffParticipant?  @relation("PlayoffHomeTeam", fields: [team1Id], references: [id])
+  team2         PlayoffParticipant?  @relation("PlayoffAwayTeam", fields: [team2Id], references: [id])
+  winner        PlayoffParticipant?  @relation("PlayoffWinner", fields: [winnerId], references: [id])
+
+  // Relations
+  gameweekScores PlayoffGameweekScore[]
+
+  @@map("playoff_matches")
+}
+
+model PlayoffGameweekScore {
+  id                 String               @id @default(cuid())
+  playoffMatchId     String               @map("playoff_match_id")
+  participantId      String               @map("participant_id")
+  gameweekId         String               @map("gameweek_id")
+  gameweekPoints     Int                  @map("gameweek_points")
+  cumulativePoints   Int                  @map("cumulative_points")
+  captainPoints      Int                  @default(0) @map("captain_points")
+  benchPoints        Int                  @default(0) @map("bench_points")
+  createdAt          DateTime             @default(now()) @map("created_at")
+
+  playoffMatch   PlayoffMatch        @relation(fields: [playoffMatchId], references: [id])
+  participant    PlayoffParticipant  @relation(fields: [participantId], references: [id])
+  gameweek       Gameweek            @relation(fields: [gameweekId], references: [id])
+
+  @@unique([playoffMatchId, participantId, gameweekId])
+  @@map("playoff_gameweek_scores")
+}
+
+model PlayoffChampionship {
+  id                   String            @id @default(cuid())
+  leagueId             String            @unique @map("league_id")
+  bracketId            String            @unique @map("bracket_id")
+  season               String
+  championId           String            @map("champion_id")
+  runnerUpId           String?           @map("runner_up_id")
+  thirdPlaceId         String?           @map("third_place_id")
+  fourthPlaceId        String?           @map("fourth_place_id")
+  finalWinnerPoints    Int?              @map("final_winner_points")
+  finalLoserPoints     Int?              @map("final_loser_points")
+  totalGameweeks       Int?              @map("total_gameweeks")
+  championshipGameweek Int?              @map("championship_gameweek")
+  createdAt            DateTime          @default(now()) @map("created_at")
+
+  league        FantasyLeague     @relation(fields: [leagueId], references: [id])
+  bracket       PlayoffBracket    @relation(fields: [bracketId], references: [id])
+  champion      LeagueMembership  @relation("Champion", fields: [championId], references: [id])
+  runnerUp      LeagueMembership? @relation("RunnerUp", fields: [runnerUpId], references: [id])
+  thirdPlace    LeagueMembership? @relation("ThirdPlace", fields: [thirdPlaceId], references: [id])
+  fourthPlace   LeagueMembership? @relation("FourthPlace", fields: [fourthPlaceId], references: [id])
+
+  @@map("playoff_championships")
+}
+
+// Additional Enums
+enum MessageType {
+  TEXT
+  TRADE_PROPOSAL
+  SYSTEM
+  CELEBRATION
+}
+
+enum NotificationType {
+  TRADE_OFFER
+  AUCTION_WON
+  GAMEWEEK_STARTED
+  POINTS_UPDATE
+  LEAGUE_INVITE
+  INJURY_ALERT
+  PRICE_CHANGE
+}
+
+enum ActivityType {
+  TRANSFER
+  CAPTAIN_CHANGE
+  FORMATION_CHANGE
+  POWER_UP_USED
+  DRAFT_PICK
+  AUCTION_BID
+}
+
+enum TradeStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+enum VoteType {
+  FOR
+  AGAINST
+}
+
+enum EffectType {
+  SQUAD_CHANGE
+  POINTS_MULTIPLIER
+  EXTRA_TRANSFER
+  FORMATION_CHANGE
+}
+
+enum PowerUpStatus {
+  USED
+  ACTIVE
+  EXPIRED
+}
+
+enum PlayoffStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+}
+
+enum PlayoffMatchStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+}
+
+// ML Prediction Systems
+model InjuryPrediction {
+  id                   String       @id @default(cuid())
+  playerId             String       @map("player_id")
+  gameweekId           String       @map("gameweek_id")
+  injuryRiskScore      Decimal      @map("injury_risk_score") @db.Decimal(5,4)
+  riskLevel            RiskLevel    @map("risk_level")
+  minutesLast3Games    Int          @map("minutes_last_3_games")
+  minutesSeasonTotal   Int          @map("minutes_season_total")
+  recentInjuryHistory  Boolean      @map("recent_injury_history")
+  ageFactor            Decimal      @map("age_factor") @db.Decimal(3,2)
+  fixtureDifficulty    Decimal      @map("fixture_difficulty") @db.Decimal(3,2)
+  recoveryDays         Int          @map("recovery_days")
+  modelVersion         String       @map("model_version") @db.VarChar(20)
+  confidenceScore      Decimal      @map("confidence_score") @db.Decimal(5,4)
+  createdAt            DateTime     @default(now()) @map("created_at")
+
+  player    Player    @relation(fields: [playerId], references: [id])
+  gameweek  Gameweek  @relation(fields: [gameweekId], references: [id])
+
+  @@unique([playerId, gameweekId])
+  @@map("injury_predictions")
+}
+
+model InjuryHistory {
+  id                 String         @id @default(cuid())
+  playerId           String         @map("player_id")
+  injuryType         InjuryType     @map("injury_type")
+  bodyPart           BodyPart       @map("body_part")
+  severity           InjurySeverity
+  injuryDate         DateTime       @map("injury_date")
+  expectedReturnDate DateTime?      @map("expected_return_date")
+  actualReturnDate   DateTime?      @map("actual_return_date")
+  gamesMissed        Int            @default(0) @map("games_missed")
+  recoveryProgress   RecoveryProgress @default(INJURED) @map("recovery_progress")
+  medicalNotes       String?        @map("medical_notes")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@map("injury_history")
+}
+
+model PricePrediction {
+  id                        String    @id @default(cuid())
+  playerId                  String    @map("player_id")
+  gameweekId                String    @map("gameweek_id")
+  currentPrice              BigInt    @map("current_price")
+  ownershipPercentage       Decimal   @map("ownership_percentage") @db.Decimal(5,2)
+  predictedPriceChange      BigInt    @map("predicted_price_change")
+  priceChangeProbability    Decimal   @map("price_change_probability") @db.Decimal(5,4)
+  predictedOwnershipChange  Decimal   @map("predicted_ownership_change") @db.Decimal(5,2)
+  formScore                 Decimal   @map("form_score") @db.Decimal(5,2)
+  fixtureDifficulty         Decimal   @map("fixture_difficulty") @db.Decimal(3,2)
+  newsSentiment             Decimal   @map("news_sentiment") @db.Decimal(3,2)
+  transferMomentum          Int       @map("transfer_momentum")
+  algorithmVersion          String    @map("algorithm_version") @db.VarChar(20)
+  lastUpdated               DateTime  @default(now()) @map("last_updated")
+
+  player    Player    @relation(fields: [playerId], references: [id])
+  gameweek  Gameweek  @relation(fields: [gameweekId], references: [id])
+
+  @@unique([playerId, gameweekId])
+  @@map("price_predictions")
+}
+
+model PriceChange {
+  id                   String    @id @default(cuid())
+  playerId             String    @map("player_id")
+  gameweekId           String    @map("gameweek_id")
+  oldPrice             BigInt    @map("old_price")
+  newPrice             BigInt    @map("new_price")
+  changeAmount         BigInt    @map("change_amount")
+  changePercentage     Decimal   @map("change_percentage") @db.Decimal(5,2)
+  ownershipBefore      Decimal   @map("ownership_before") @db.Decimal(5,2)
+  ownershipAfter       Decimal   @map("ownership_after") @db.Decimal(5,2)
+  netTransfers         Int       @map("net_transfers")
+  wasPredicted         Boolean   @default(false) @map("was_predicted")
+  predictionAccuracy   Decimal?  @map("prediction_accuracy") @db.Decimal(5,4)
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  player    Player    @relation(fields: [playerId], references: [id])
+  gameweek  Gameweek  @relation(fields: [gameweekId], references: [id])
+
+  @@map("price_changes")
+}
+
+model PlayerPriceHistory {
+  id                   String    @id @default(cuid())
+  playerId             String    @map("player_id")
+  gameweekId           String    @map("gameweek_id")
+  price                BigInt
+  ownershipPercentage  Decimal   @map("ownership_percentage") @db.Decimal(5,2)
+  captainPercentage    Decimal   @map("captain_percentage") @db.Decimal(5,2)
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  player    Player    @relation(fields: [playerId], references: [id])
+  gameweek  Gameweek  @relation(fields: [gameweekId], references: [id])
+
+  @@unique([playerId, gameweekId])
+  @@map("player_price_history")
+}
+
+// Additional ML Enums
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum InjuryType {
+  MUSCLE
+  LIGAMENT
+  BONE
+  CONCUSSION
+  OTHER
+}
+
+enum BodyPart {
+  ANKLE
+  KNEE
+  HAMSTRING
+  CALF
+  GROIN
+  SHOULDER
+  HEAD
+  OTHER
+}
+
+enum InjurySeverity {
+  MINOR
+  MODERATE
+  MAJOR
+  CAREER_THREATENING
+}
+
+enum RecoveryProgress {
+  INJURED
+  RECOVERING
+  TRAINING
+  MATCH_FIT
+}
