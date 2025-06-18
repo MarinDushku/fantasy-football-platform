@@ -52,6 +52,9 @@ export async function GET() {
           select: {
             id: true,
             teamName: true,
+            totalPoints: true,
+            gameweekPoints: true,
+            leaguePosition: true,
             user: {
               select: {
                 id: true,
@@ -72,7 +75,21 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json(leagues)
+    // Convert BigInt values to strings for JSON serialization
+    const serializedLeagues = leagues.map(league => ({
+      ...league,
+      budgetLimit: league.budgetLimit.toString(),
+      entryFee: league.entryFee.toString(),
+      prizePool: league.prizePool.toString(),
+      memberships: league.memberships.map(membership => ({
+        ...membership,
+        totalPoints: membership.totalPoints,
+        gameweekPoints: membership.gameweekPoints,
+        leaguePosition: membership.leaguePosition
+      }))
+    }))
+
+    return NextResponse.json(serializedLeagues)
   } catch (error) {
     console.error("Error fetching leagues:", error)
     return NextResponse.json(
@@ -164,7 +181,15 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    return NextResponse.json(league, { status: 201 })
+    // Convert BigInt values to strings for JSON serialization
+    const serializedLeague = {
+      ...league,
+      budgetLimit: league.budgetLimit.toString(),
+      entryFee: league.entryFee.toString(),
+      prizePool: league.prizePool.toString()
+    }
+
+    return NextResponse.json(serializedLeague, { status: 201 })
   } catch (error) {
     console.error("Error creating league:", error)
     return NextResponse.json(
